@@ -12,7 +12,7 @@ def parse_args():
     parser.add_argument("--input", required=True, help="Input header containing structs")
     parser.add_argument("--output", required=True, help="Output generated header")
     parser.add_argument("--clang", default="clang", help="Clang binary path")
-    parser.add_argument("--clang-args", nargs="*", default=[], help="Extra args passed to clang")
+    parser.add_argument("--clang-args", nargs=argparse.REMAINDER, default=[], help="Extra args passed to clang")
     return parser.parse_args()
 
 
