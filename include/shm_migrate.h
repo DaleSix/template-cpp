@@ -2,6 +2,7 @@
 #define SHM_MIGRATE_H
 
 #include <cstddef>
+#include <cstring>
 #include <type_traits>
 
 namespace shm_migrate {
@@ -119,12 +120,18 @@ void set_default(T& value) {
     }
 }
 
-// 数组迁移
+// 数组迁移，类型一致且可平凡拷贝时走 memcpy
 template <typename OldT, std::size_t N, typename NewT, std::size_t M>
 void copy_array(const OldT (&oldArr)[N], NewT (&newArr)[M]) {
     constexpr std::size_t kMin = (N < M) ? N : M;
-    for (std::size_t i = 0; i < kMin; ++i) {
-        copy_value(oldArr[i], newArr[i]);
+    if constexpr (std::is_same<OldT, NewT>::value && std::is_trivially_copyable<OldT>::value) {
+        if (kMin > 0) {
+            std::memcpy(&newArr[0], &oldArr[0], kMin * sizeof(OldT));
+        }
+    } else {
+        for (std::size_t i = 0; i < kMin; ++i) {
+            copy_value(oldArr[i], newArr[i]);
+        }
     }
     for (std::size_t i = kMin; i < M; ++i) {
         set_default(newArr[i]);
