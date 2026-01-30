@@ -27,7 +27,7 @@ def run_clang_ast(input_path, clang, clang_args):
     ]
     cmd.extend(clang_args)
     cmd.append(input_path)
-    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     if result.returncode != 0:
         sys.stderr.write(result.stderr)
         sys.exit(result.returncode)
