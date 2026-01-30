@@ -2,23 +2,27 @@
 
 #include <iostream>
 
+// 旧版本结构体
 struct OldB {
     int id;
     int count;
 };
 
+// 新版本结构体，新增字段 status
 struct NewB {
     int id;
     int status;
     int count;
 };
 
+// 旧版本结构体，包含结构体数组和基础数组
 struct OldA {
     int flag;
     OldB items[2];
     int values[3];
 };
 
+// 新版本结构体：数组长度变化，新增字段 price
 struct NewA {
     int flag;
     NewB items[3];
@@ -28,6 +32,7 @@ struct NewA {
 
 namespace shm_migrate {
 
+// 定义字段 tag，新旧结构体使用同名 tag
 SHM_DEFINE_FIELD(id);
 SHM_DEFINE_FIELD(count);
 SHM_DEFINE_FIELD(status);
@@ -36,6 +41,7 @@ SHM_DEFINE_FIELD(items);
 SHM_DEFINE_FIELD(values);
 SHM_DEFINE_FIELD(price);
 
+// 旧结构体字段列表
 template <>
 struct StructMeta<OldB> {
     using Fields = TypeList<
@@ -44,6 +50,7 @@ struct StructMeta<OldB> {
     >;
 };
 
+// 新结构体字段列表
 template <>
 struct StructMeta<NewB> {
     using Fields = TypeList<
@@ -53,6 +60,7 @@ struct StructMeta<NewB> {
     >;
 };
 
+// 旧结构体字段列表
 template <>
 struct StructMeta<OldA> {
     using Fields = TypeList<
@@ -62,6 +70,7 @@ struct StructMeta<OldA> {
     >;
 };
 
+// 新结构体字段列表
 template <>
 struct StructMeta<NewA> {
     using Fields = TypeList<
@@ -75,6 +84,7 @@ struct StructMeta<NewA> {
 }  // namespace shm_migrate
 
 int main() {
+    // 模拟从共享内存读取旧结构体并迁移到新结构体
     OldA oldA{};
     oldA.flag = 1;
     oldA.items[0] = OldB{10, 20};

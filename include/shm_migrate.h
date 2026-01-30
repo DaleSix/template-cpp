@@ -6,9 +6,11 @@
 
 namespace shm_migrate {
 
+// 简单的类型列表，用于描述结构体字段序列
 template <typename... Ts>
 struct TypeList {};
 
+// 字段描述：结构体类型、字段名标记、字段类型、成员指针
 template <typename Struct, typename Name, typename Type, Type Struct::*Member>
 struct Field {
     using struct_type = Struct;
@@ -20,6 +22,7 @@ struct Field {
 template <typename T>
 struct StructMeta;
 
+// 是否提供了结构体元信息
 template <typename T, typename = void>
 struct has_meta : std::false_type {};
 
@@ -29,6 +32,7 @@ struct has_meta<T, std::void_t<typename StructMeta<T>::Fields>> : std::true_type
 template <typename T>
 struct is_reflectable : has_meta<T> {};
 
+// 在字段列表中按名字查找
 template <typename Name, typename Fields>
 struct FindField;
 
@@ -44,15 +48,19 @@ struct FindField<Name, TypeList<Head, Tail...>> {
                                     typename FindField<Name, TypeList<Tail...>>::type>;
 };
 
+// 默认值填充
 template <typename T>
 void set_default(T& value);
 
+// 迁移单个值，支持嵌套结构体和数组
 template <typename OldT, typename NewT>
 void copy_value(const OldT& oldVal, NewT& newVal);
 
+// 迁移数组，按最小长度拷贝，剩余新元素填默认
 template <typename OldT, std::size_t N, typename NewT, std::size_t M>
 void copy_array(const OldT (&oldArr)[N], NewT (&newArr)[M]);
 
+// 拷贝字段：如果旧字段存在则拷贝，否则填默认
 template <typename Old, typename New, typename OldField, typename NewField, bool HasOld>
 struct CopyFieldImpl;
 
@@ -70,6 +78,7 @@ struct CopyFieldImpl<Old, New, OldField, NewField, false> {
     }
 };
 
+// 遍历新结构体字段列表，按名字匹配旧字段
 template <typename Old, typename New, typename OldFields, typename NewFields>
 struct CopyFields;
 
@@ -88,6 +97,7 @@ struct CopyFields<Old, New, OldFields, TypeList<NewHead, NewTail...>> {
     }
 };
 
+// 入口函数：从旧对象迁移到新对象
 template <typename Old, typename New>
 void migrate(const Old& oldObj, New& newObj) {
     static_assert(is_reflectable<Old>::value, "Old type missing StructMeta");
@@ -97,6 +107,7 @@ void migrate(const Old& oldObj, New& newObj) {
     CopyFields<Old, New, OldFields, NewFields>::apply(oldObj, newObj);
 }
 
+// 默认值实现：数组递归填充，其它类型 value-initialize
 template <typename T>
 void set_default(T& value) {
     if constexpr (std::is_array<T>::value) {
@@ -108,6 +119,7 @@ void set_default(T& value) {
     }
 }
 
+// 数组迁移
 template <typename OldT, std::size_t N, typename NewT, std::size_t M>
 void copy_array(const OldT (&oldArr)[N], NewT (&newArr)[M]) {
     constexpr std::size_t kMin = (N < M) ? N : M;
@@ -119,6 +131,7 @@ void copy_array(const OldT (&oldArr)[N], NewT (&newArr)[M]) {
     }
 }
 
+// 值迁移：数组 -> 数组，结构体 -> 结构体，其它可赋值类型直接拷贝
 template <typename OldT, typename NewT>
 void copy_value(const OldT& oldVal, NewT& newVal) {
     if constexpr (std::is_array<OldT>::value && std::is_array<NewT>::value) {
@@ -134,9 +147,11 @@ void copy_value(const OldT& oldVal, NewT& newVal) {
 
 }  // namespace shm_migrate
 
+// 定义字段名 tag，用于新旧结构体字段对齐
 #define SHM_DEFINE_FIELD(name) \
     struct name##_tag {}
 
+// 生成字段描述，需与 SHM_DEFINE_FIELD 的 tag 名一致
 #define SHM_FIELD(struct_type, member) \
     ::shm_migrate::Field<struct_type, member##_tag, decltype(struct_type::member), &struct_type::member>
 
