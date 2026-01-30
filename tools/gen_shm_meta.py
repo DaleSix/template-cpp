@@ -123,9 +123,10 @@ def line_depth(line):
 
 def collect_structs_text(text, structs, warnings):
     namespace_stack = []
-    struct_defs = []
+    record_stack = []
     ns_re = re.compile(r"\bNamespaceDecl\b.*\bnamespace\s+([A-Za-z_][A-Za-z0-9_]*)")
-    record_re = re.compile(r"\b(CXXRecordDecl|RecordDecl)\b.*\bstruct\b\s+([A-Za-z_][A-Za-z0-9_]*)\b.*\bdefinition\b")
+    ns_tail_re = re.compile(r"\bNamespaceDecl\b.*\b([A-Za-z_][A-Za-z0-9_]*)\b\s*$")
+    record_re = re.compile(r"\b(CXXRecordDecl|RecordDecl)\b.*\bstruct\b\s+([A-Za-z_][A-Za-z0-9_]*)\b")
     field_re = re.compile(r"\bFieldDecl\b[^']*?\b([A-Za-z_][A-Za-z0-9_]*)\b\s*'")
 
     for raw_line in text.splitlines():
@@ -135,14 +136,18 @@ def collect_structs_text(text, structs, warnings):
         depth = line_depth(line)
         while namespace_stack and depth <= namespace_stack[-1][0]:
             namespace_stack.pop()
+        while record_stack and depth <= record_stack[-1][0]:
+            record_stack.pop()
 
         ns_match = ns_re.search(line)
+        if not ns_match:
+            ns_match = ns_tail_re.search(line)
         if ns_match:
             namespace_stack.append((depth, ns_match.group(1)))
             continue
 
         record_match = record_re.search(line)
-        if record_match:
+        if record_match and "implicit" not in line:
             struct_name = record_match.group(2)
             if namespace_stack:
                 full_name = "::".join([name for _, name in namespace_stack] + [struct_name])
@@ -150,7 +155,7 @@ def collect_structs_text(text, structs, warnings):
                 full_name = struct_name
             if full_name not in structs:
                 structs[full_name] = []
-            struct_defs.append((depth, full_name))
+            record_stack.append((depth, full_name))
             continue
 
         field_match = field_re.search(line)
@@ -158,12 +163,8 @@ def collect_structs_text(text, structs, warnings):
             if "bitfield" in line:
                 warnings.append(f"skip bitfield {field_match.group(1)}")
                 continue
-            owner = None
-            for def_depth, def_name in reversed(struct_defs):
-                if def_depth < depth:
-                    owner = def_name
-                    break
-            if owner:
+            if record_stack:
+                owner = record_stack[-1][1]
                 if field_match.group(1) not in structs[owner]:
                     structs[owner].append(field_match.group(1))
             else:
