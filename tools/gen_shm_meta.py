@@ -65,7 +65,8 @@ def collect_structs(node, scope, structs, warnings):
     if kind in ("RecordDecl", "CXXRecordDecl"):
         tag_used = node.get("tagUsed")
         is_struct = tag_used == "struct" or node.get("isStruct") is True
-        if is_struct and node.get("isCompleteDefinition"):
+        is_complete = node.get("isCompleteDefinition") is True or node.get("completeDefinition") is True
+        if is_struct and is_complete:
             name = node.get("name")
             if name:
                 fields = []
