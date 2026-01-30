@@ -126,7 +126,7 @@ def collect_structs_text(text, structs, warnings):
     struct_defs = []
     ns_re = re.compile(r"\bNamespaceDecl\b.*\bnamespace\s+([A-Za-z_][A-Za-z0-9_]*)")
     record_re = re.compile(r"\b(CXXRecordDecl|RecordDecl)\b.*\bstruct\b\s+([A-Za-z_][A-Za-z0-9_]*)\b.*\bdefinition\b")
-    field_re = re.compile(r"\bFieldDecl\b.*\b([A-Za-z_][A-Za-z0-9_]*)\b\s*'")
+    field_re = re.compile(r"\bFieldDecl\b[^']*?\b([A-Za-z_][A-Za-z0-9_]*)\b\s*'")
 
     for raw_line in text.splitlines():
         line = raw_line.rstrip("\n")
