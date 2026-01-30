@@ -116,7 +116,7 @@ def line_depth(line):
     for ch in line:
         if ch.isalpha():
             break
-        if ch == "|":
+        if ch == "|" or ch == "`":
             depth += 1
     return depth
 
