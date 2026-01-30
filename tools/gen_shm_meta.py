@@ -113,11 +113,12 @@ def collect_structs(node, scope, structs, warnings):
 
 def line_depth(line):
     depth = 0
-    for ch in line:
-        if ch.isalpha():
-            break
-        if ch == "|" or ch == "`":
-            depth += 1
+    i = 0
+    while i + 1 < len(line) and line[i:i + 2] in ("| ", "  "):
+        depth += 1
+        i += 2
+    if i + 1 < len(line) and line[i:i + 2] in ("|-", "`-"):
+        depth += 1
     return depth
 
 
