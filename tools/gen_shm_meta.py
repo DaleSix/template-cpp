@@ -2,6 +2,7 @@
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -16,7 +17,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def run_clang_ast(input_path, clang, clang_args):
+def run_clang_ast_json(input_path, clang, clang_args):
     cmd = [
         clang,
         "-x",
@@ -29,14 +30,29 @@ def run_clang_ast(input_path, clang, clang_args):
     cmd.append(input_path)
     result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     if result.returncode != 0:
+        return None, result.stderr
+    try:
+        return json.loads(result.stdout), None
+    except json.JSONDecodeError as exc:
+        return None, f"failed to parse clang ast json: {exc}"
+
+
+def run_clang_ast_text(input_path, clang, clang_args):
+    cmd = [
+        clang,
+        "-x",
+        "c++",
+        "-fsyntax-only",
+        "-Xclang",
+        "-ast-dump",
+    ]
+    cmd.extend(clang_args)
+    cmd.append(input_path)
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+    if result.returncode != 0:
         sys.stderr.write(result.stderr)
         sys.exit(result.returncode)
-    try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        sys.stderr.write("failed to parse clang ast json\n")
-        sys.stderr.write(str(exc) + "\n")
-        sys.exit(1)
+    return result.stdout
 
 
 def make_guard(output_path):
@@ -95,6 +111,65 @@ def collect_structs(node, scope, structs, warnings):
         collect_structs(child, scope, structs, warnings)
 
 
+def line_depth(line):
+    depth = 0
+    for ch in line:
+        if ch.isalpha():
+            break
+        if ch == "|":
+            depth += 1
+    return depth
+
+
+def collect_structs_text(text, structs, warnings):
+    namespace_stack = []
+    struct_defs = []
+    ns_re = re.compile(r"\bNamespaceDecl\b.*\bnamespace\s+([A-Za-z_][A-Za-z0-9_]*)")
+    record_re = re.compile(r"\b(CXXRecordDecl|RecordDecl)\b.*\bstruct\b\s+([A-Za-z_][A-Za-z0-9_]*)\b.*\bdefinition\b")
+    field_re = re.compile(r"\bFieldDecl\b.*\b([A-Za-z_][A-Za-z0-9_]*)\b\s*'")
+
+    for raw_line in text.splitlines():
+        line = raw_line.rstrip("\n")
+        if not line:
+            continue
+        depth = line_depth(line)
+        while namespace_stack and depth <= namespace_stack[-1][0]:
+            namespace_stack.pop()
+
+        ns_match = ns_re.search(line)
+        if ns_match:
+            namespace_stack.append((depth, ns_match.group(1)))
+            continue
+
+        record_match = record_re.search(line)
+        if record_match:
+            struct_name = record_match.group(2)
+            if namespace_stack:
+                full_name = "::".join([name for _, name in namespace_stack] + [struct_name])
+            else:
+                full_name = struct_name
+            if full_name not in structs:
+                structs[full_name] = []
+            struct_defs.append((depth, full_name))
+            continue
+
+        field_match = field_re.search(line)
+        if field_match:
+            if "bitfield" in line:
+                warnings.append(f"skip bitfield {field_match.group(1)}")
+                continue
+            owner = None
+            for def_depth, def_name in reversed(struct_defs):
+                if def_depth < depth:
+                    owner = def_name
+                    break
+            if owner:
+                if field_match.group(1) not in structs[owner]:
+                    structs[owner].append(field_match.group(1))
+            else:
+                warnings.append(f"skip field without owner {field_match.group(1)}")
+
+
 def write_output(output_path, input_path, structs, warnings):
     output_path.parent.mkdir(parents=True, exist_ok=True)
     include_rel = os.path.relpath(str(input_path), str(output_path.parent))
@@ -151,10 +226,17 @@ def main():
     clang_args = list(args.clang_args)
     clang_args.insert(0, f"-I{input_path.parent}")
 
-    ast = run_clang_ast(str(input_path), args.clang, clang_args)
     structs = {}
     warnings = []
-    collect_structs(ast, [], structs, warnings)
+    ast, json_err = run_clang_ast_json(str(input_path), args.clang, clang_args)
+    if ast is not None:
+        collect_structs(ast, [], structs, warnings)
+    else:
+        if json_err and "unknown argument: '-ast-dump=json'" not in json_err:
+            sys.stderr.write(json_err + "\n")
+            sys.exit(1)
+        text = run_clang_ast_text(str(input_path), args.clang, clang_args)
+        collect_structs_text(text, structs, warnings)
 
     if not structs:
         sys.stderr.write("no structs found in input header\n")

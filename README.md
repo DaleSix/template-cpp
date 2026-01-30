@@ -44,6 +44,8 @@ struct NewB {
 
 构建时会自动运行生成脚本，输出 `include/shm_meta_generated.h`。
 生成脚本依赖 `clang` 和 `python3`。
+建议使用 clang 9 及以上以启用 JSON AST。
+如果只装得到 clang 7，脚本会自动退化为解析文本 AST。
 
 手动运行示例：
 
