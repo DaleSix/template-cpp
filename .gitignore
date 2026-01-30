@@ -1,2 +1,3 @@
 *.o
 shm_migrate_demo
+include/shm_meta_generated.h

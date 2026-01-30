@@ -23,25 +23,9 @@ make
 
 ## 使用说明
 
-### 1. 引入头文件
+### 1. 准备结构体定义
 
-```
-#include "shm_migrate.h"
-```
-
-### 2. 定义字段 tag
-
-字段 tag 用于新旧结构体字段对齐，需保证同名字段使用同一个 tag。
-
-```
-namespace shm_migrate {
-SHM_DEFINE_FIELD(id);
-SHM_DEFINE_FIELD(count);
-SHM_DEFINE_FIELD(status);
-}
-```
-
-### 3. 为旧结构体和新结构体提供元信息
+把新旧结构体放到 `include/shm_structs.h`，例如：
 
 ```
 struct OldB {
@@ -54,25 +38,29 @@ struct NewB {
     int status;
     int count;
 };
+```
 
-namespace shm_migrate {
-template <>
-struct StructMeta<OldB> {
-    using Fields = TypeList<
-        SHM_FIELD(OldB, id),
-        SHM_FIELD(OldB, count)
-    >;
-};
+### 2. 自动生成字段元信息
 
-template <>
-struct StructMeta<NewB> {
-    using Fields = TypeList<
-        SHM_FIELD(NewB, id),
-        SHM_FIELD(NewB, status),
-        SHM_FIELD(NewB, count)
-    >;
-};
-}
+构建时会自动运行生成脚本，输出 `include/shm_meta_generated.h`。
+生成脚本依赖 `clang` 和 `python3`。
+
+手动运行示例：
+
+```
+python3 tools/gen_shm_meta.py \
+  --input include/shm_structs.h \
+  --output include/shm_meta_generated.h \
+  --clang clang \
+  --clang-args -std=c++17 -Iinclude
+```
+
+### 3. 在代码中使用
+
+```
+#include "shm_migrate.h"
+#include "shm_structs.h"
+#include "shm_meta_generated.h"
 ```
 
 ### 4. 执行迁移
